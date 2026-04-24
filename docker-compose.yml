@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stockdata-backend
+    restart: unless-stopped
+    environment:
+      TUSHARE_TOKEN: ${TUSHARE_TOKEN}
+      DATABASE_URL: sqlite:////app/data/stocks.db
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      CORS_ORIGINS: http://localhost,http://localhost:5173
+      SCHEDULER_ENABLED: "true"
+      DAILY_JOB_HOUR: "16"
+      DAILY_JOB_MINUTE: "0"
+      CLEANUP_JOB_HOUR: "8"
+      CLEANUP_JOB_MINUTE: "30"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/health\")' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stockdata-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
