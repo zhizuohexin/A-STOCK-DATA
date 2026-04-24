@@ -88,11 +88,10 @@ class TushareProvider(DataProvider):
             )
         return rows
 
-    def fetch_limit_up(self, trade_date: date) -> list[dict[str, Any]]:
+    def fetch_limit_pool(self, trade_date: date, limit_type: str = "U") -> list[dict[str, Any]]:
         d = _fmt(trade_date)
-        # Tushare 涨停池接口 limit_list_d，需 2000 积分。
-        # 注意：kpl_list（开盘啦）是独立付费数据源，2000 档没权限，不要做 fallback。
-        df = self.pro.limit_list_d(trade_date=d, limit_type="U")
+        # Tushare 涨跌停池接口 limit_list_d，需 2000 积分。limit_type: U/D/Z
+        df = self.pro.limit_list_d(trade_date=d, limit_type=limit_type)
 
         rows: list[dict[str, Any]] = []
         if df is None or df.empty:
@@ -112,7 +111,7 @@ class TushareProvider(DataProvider):
                     "open_times": _int(r.get("open_times")),
                     "up_stat": _str_or_none(r.get("up_stat")),
                     "limit_times": _int(r.get("limit_times") or r.get("lu_time")),
-                    "limit": r.get("limit") or "U",
+                    "limit": r.get("limit") or limit_type,
                 }
             )
         return rows

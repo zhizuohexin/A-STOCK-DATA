@@ -17,6 +17,8 @@ class StockOut(BaseModel):
 class DailyQuoteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     ts_code: str
+    name: str | None = None
+    industry: str | None = None
     trade_date: date
     open: float | None
     high: float | None
@@ -66,6 +68,7 @@ class SectorDailyOut(BaseModel):
 class IntradayBarOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     ts_code: str
+    name: str | None = None
     bar_time: datetime
     open: float | None
     high: float | None
@@ -99,3 +102,17 @@ class BackfillResponse(BaseModel):
 
 class DeleteResponse(BaseModel):
     rows_deleted: int
+
+
+class JournalEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    entry_date: date
+    content: str
+    images: list[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class OcrOut(BaseModel):
+    text: str

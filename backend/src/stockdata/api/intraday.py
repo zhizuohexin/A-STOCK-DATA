@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, text
 from sqlalchemy.orm import Session
 
 from stockdata.api.schemas import DeleteResponse, IntradayBarOut
@@ -20,13 +20,22 @@ def list_intraday(
     limit: int = 500,
     session: Session = Depends(get_session),
 ):
-    stmt = select(IntradayBar).where(IntradayBar.ts_code == code)
+    filters = ["b.ts_code = :code"]
+    params: dict = {"code": code, "limit": min(limit, 1000)}
     if trade_date:
-        start = datetime.combine(trade_date, datetime.min.time())
-        end = datetime.combine(trade_date, datetime.max.time())
-        stmt = stmt.where(and_(IntradayBar.bar_time >= start, IntradayBar.bar_time <= end))
-    stmt = stmt.order_by(IntradayBar.bar_time).limit(min(limit, 1000))
-    return session.execute(stmt).scalars().all()
+        filters.append("b.bar_time >= :start AND b.bar_time <= :end")
+        params["start"] = datetime.combine(trade_date, datetime.min.time())
+        params["end"] = datetime.combine(trade_date, datetime.max.time())
+    sql = f"""
+    SELECT b.ts_code, s.name, b.bar_time, b.open, b.high, b.low, b.close, b.vol, b.amount
+    FROM intraday_bars b
+    LEFT JOIN stocks s ON s.ts_code = b.ts_code
+    WHERE {' AND '.join(filters)}
+    ORDER BY b.bar_time
+    LIMIT :limit
+    """
+    rows = session.execute(text(sql), params).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @router.post("/fetch")

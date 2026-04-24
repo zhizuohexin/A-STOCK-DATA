@@ -13,6 +13,7 @@ from stockdata.models import (
     Sector,
     SectorDaily,
     Stock,
+    StockSector,
 )
 
 
@@ -53,6 +54,20 @@ def upsert_sector_daily(session: Session, rows: list[dict[str, Any]]) -> int:
 
 def upsert_intraday_bars(session: Session, rows: list[dict[str, Any]]) -> int:
     return _upsert(session, IntradayBar, rows, ["ts_code", "bar_time"])
+
+
+def upsert_stock_sectors(session: Session, rows: list[dict[str, Any]]) -> int:
+    return _upsert(session, StockSector, rows, ["ts_code", "sector_code"])
+
+
+def replace_stock_sectors_for_src(session: Session, src: str, rows: list[dict[str, Any]]) -> int:
+    """全量替换某个 src（EM/THS）的映射：先删后插。"""
+    from sqlalchemy import delete
+
+    session.execute(delete(StockSector).where(StockSector.src == src))
+    if rows:
+        session.execute(StockSector.__table__.insert(), rows)
+    return len(rows)
 
 
 def record_job(

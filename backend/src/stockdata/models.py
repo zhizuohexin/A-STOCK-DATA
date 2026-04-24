@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Float, Index, Integer, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Date, DateTime, Float, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from stockdata.db import Base
@@ -80,6 +80,19 @@ class Sector(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class StockSector(Base):
+    """股票 ↔ 板块多对多关联。一只股通常属于 1 个行业 + 多个概念。"""
+
+    __tablename__ = "stock_sectors"
+
+    ts_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    sector_code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    src: Mapped[str | None] = mapped_column(String(16), nullable=True)  # EM / THS
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (Index("ix_stock_sectors_sector", "sector_code"),)
+
+
 class SectorDaily(Base):
     """板块日线。"""
 
@@ -128,3 +141,33 @@ class JobRun(Base):
     rows_affected: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class _JournalMixin:
+    """三个笔记模块共用字段。独立表，但字段一致。"""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entry_date: Mapped[date] = mapped_column(Date, index=True)
+    content: Mapped[str] = mapped_column(Text, default="")
+    # JSON 数组字符串：["/uploads/trading/2026-04/xxx.jpg", ...]
+    images: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class TradingRecord(_JournalMixin, Base):
+    """我的交易记录。"""
+
+    __tablename__ = "trading_records"
+
+
+class ReviewReference(_JournalMixin, Base):
+    """复盘参考文献。"""
+
+    __tablename__ = "review_references"
+
+
+class MasterTracking(_JournalMixin, Base):
+    """学习的实盘高手跟踪。"""
+
+    __tablename__ = "master_tracking"

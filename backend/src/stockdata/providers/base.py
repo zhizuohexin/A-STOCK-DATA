@@ -22,8 +22,8 @@ class DataProvider(ABC):
         """Return daily OHLC for all stocks on one trading day."""
 
     @abstractmethod
-    def fetch_limit_up(self, trade_date: date) -> list[dict[str, Any]]:
-        """Return limit-up pool (涨停板池) for one day, including consecutive limit-up count."""
+    def fetch_limit_pool(self, trade_date: date, limit_type: str = "U") -> list[dict[str, Any]]:
+        """Return limit pool for one day. limit_type: U=涨停 D=跌停 Z=炸板. Includes consecutive limit count for U."""
 
     @abstractmethod
     def fetch_sectors(self) -> list[dict[str, Any]]:

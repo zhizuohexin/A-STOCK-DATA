@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     tushare_token: str = ""
 
     database_url: str = "sqlite:///./data/stocks.db"
+    uploads_dir: str = "./data/uploads"
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
