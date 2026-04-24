@@ -1,27 +1,22 @@
-import { Button, DatePicker, InputNumber, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, DatePicker, Space, Table, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
-import { api, type LimitUp as LimitUpRow } from '../api/client';
+import { api, type LimitUp as LimitRow } from '../api/client';
 import { PctCell, numSorter, strSorter } from '../components/PctCell';
 import { formatYi } from '../components/format';
 
 const { Title } = Typography;
 
-export default function LimitUp() {
-  const [data, setData] = useState<LimitUpRow[]>([]);
+export default function LimitDown() {
+  const [data, setData] = useState<LimitRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState<Dayjs | null>(dayjs());
-  const [minLimit, setMinLimit] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const r = await api.get<LimitUpRow[]>('/limit-up', {
-        params: {
-          trade_date: date?.format('YYYY-MM-DD'),
-          min_limit_times: minLimit ?? undefined,
-          limit: 500,
-        },
+      const r = await api.get<LimitRow[]>('/limit-down', {
+        params: { trade_date: date?.format('YYYY-MM-DD'), limit: 500 },
       });
       setData(r.data);
     } finally { setLoading(false); }
@@ -33,7 +28,7 @@ export default function LimitUp() {
     if (!date) { message.warning('请选日期'); return; }
     const hide = message.loading('拉取中...', 0);
     try {
-      const r = await api.post('/limit-up/backfill', null, { params: { trade_date: date.format('YYYY-MM-DD') } });
+      const r = await api.post('/limit-down/backfill', null, { params: { trade_date: date.format('YYYY-MM-DD') } });
       message.success(`入库 ${r.data.rows_upserted} 条`);
       load();
     } catch (e: any) {
@@ -43,14 +38,13 @@ export default function LimitUp() {
 
   return (
     <div>
-      <Title level={3}>涨停 / 连板</Title>
+      <Title level={3}>今日跌停</Title>
       <Space wrap style={{ marginBottom: 12 }}>
         <DatePicker value={date} onChange={setDate} />
-        <InputNumber placeholder="最少连板数" value={minLimit ?? undefined} onChange={(v) => setMinLimit((v as number) ?? null)} style={{ width: 140 }} />
         <Button onClick={load}>查询</Button>
         <Button type="primary" onClick={backfill}>回溯入库</Button>
       </Space>
-      <Table<LimitUpRow>
+      <Table<LimitRow>
         rowKey={(r) => `${r.ts_code}-${r.trade_date}`}
         dataSource={data}
         loading={loading}
@@ -64,19 +58,14 @@ export default function LimitUp() {
           {
             title: '涨跌幅%', dataIndex: 'pct_chg', width: 110,
             sorter: numSorter('pct_chg'),
-            defaultSortOrder: 'descend',
+            defaultSortOrder: 'ascend',  // 跌停默认跌幅从大到小（最负在前）
             render: (v: number | null) => <PctCell value={v} />,
-          },
-          {
-            title: '连板数', dataIndex: 'limit_times', width: 90,
-            sorter: numSorter('limit_times'),
-            render: (v: number | null) => v == null ? '-' : <Tag color={v >= 3 ? 'magenta' : 'volcano'}>{v}板</Tag>,
           },
           { title: '首次封板', dataIndex: 'first_time', width: 110 },
           { title: '最后封板', dataIndex: 'last_time', width: 110 },
           { title: '封单金额(亿)', dataIndex: 'fd_amount', width: 120, sorter: numSorter('fd_amount'), render: (v) => formatYi(v, 'yuan', '亿') },
-          { title: '成交额(亿)', dataIndex: 'amount', width: 120, sorter: numSorter('amount'), render: (v) => formatYi(v, 'yuan', '亿') },
           { title: '炸板次数', dataIndex: 'open_times', width: 100, sorter: numSorter('open_times') },
+          { title: '成交额(亿)', dataIndex: 'amount', width: 120, sorter: numSorter('amount'), render: (v) => formatYi(v, 'yuan', '亿') },
         ]}
       />
     </div>

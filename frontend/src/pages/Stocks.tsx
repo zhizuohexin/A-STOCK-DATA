@@ -1,6 +1,7 @@
 import { Button, Input, Space, Table, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { api, type Stock } from '../api/client';
+import { strSorter } from '../components/PctCell';
 
 const { Title } = Typography;
 
@@ -50,14 +51,14 @@ export default function Stocks() {
         dataSource={data}
         loading={loading}
         size="small"
-        pagination={{ pageSize: 20 }}
+        pagination={{ pageSize: 50 }}
         columns={[
-          { title: '代码', dataIndex: 'ts_code', width: 120 },
-          { title: '简称', dataIndex: 'name', width: 120 },
-          { title: '行业', dataIndex: 'industry', width: 140 },
-          { title: '地区', dataIndex: 'area', width: 100 },
-          { title: '市场', dataIndex: 'market', width: 100 },
-          { title: '上市日期', dataIndex: 'list_date', width: 120 },
+          { title: '代码', dataIndex: 'ts_code', width: 120, sorter: strSorter('ts_code') },
+          { title: '简称', dataIndex: 'name', width: 120, sorter: strSorter('name') },
+          { title: '行业', dataIndex: 'industry', width: 140, sorter: strSorter('industry') },
+          { title: '地区', dataIndex: 'area', width: 100, sorter: strSorter('area') },
+          { title: '市场', dataIndex: 'market', width: 100, sorter: strSorter('market') },
+          { title: '上市日期', dataIndex: 'list_date', width: 120, sorter: strSorter('list_date') },
         ]}
       />
     </div>

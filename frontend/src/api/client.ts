@@ -17,6 +17,9 @@ export type Stock = {
 
 export type DailyQuote = {
   ts_code: string;
+  name: string | null;
+  industry: string | null;
+  concepts: string[];
   trade_date: string;
   open: number | null;
   high: number | null;
@@ -58,6 +61,7 @@ export type SectorDaily = {
 
 export type IntradayBar = {
   ts_code: string;
+  name: string | null;
   bar_time: string;
   open: number | null;
   high: number | null;
@@ -104,4 +108,15 @@ export type SectorGainerItem = {
   vol: number | null;
   amount: number | null;
   type: string | null;
+};
+
+export type JournalCategory = 'trading' | 'review' | 'master';
+
+export type JournalEntry = {
+  id: number;
+  entry_date: string;
+  content: string;
+  images: string[];
+  created_at: string;
+  updated_at: string;
 };

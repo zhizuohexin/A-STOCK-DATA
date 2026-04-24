@@ -12,8 +12,8 @@ services:
       API_PORT: 8000
       CORS_ORIGINS: http://localhost,http://localhost:5173
       SCHEDULER_ENABLED: "true"
-      DAILY_JOB_HOUR: "16"
-      DAILY_JOB_MINUTE: "0"
+      DAILY_JOB_HOUR: "17"
+      DAILY_JOB_MINUTE: "30"
       CLEANUP_JOB_HOUR: "8"
       CLEANUP_JOB_MINUTE: "30"
       TZ: Asia/Shanghai

@@ -1,6 +1,7 @@
 import { Button, Select, Space, Table, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { api, type JobRun } from '../api/client';
+import { numSorter, strSorter } from '../components/PctCell';
 
 const { Title } = Typography;
 
@@ -47,17 +48,18 @@ export default function Jobs() {
         dataSource={data}
         loading={loading}
         size="small"
-        pagination={{ pageSize: 20 }}
+        pagination={{ pageSize: 50 }}
         columns={[
-          { title: '任务', dataIndex: 'job_name', width: 200 },
+          { title: '任务', dataIndex: 'job_name', width: 200, sorter: strSorter('job_name') },
           {
             title: '状态', dataIndex: 'status', width: 100,
+            sorter: strSorter('status'),
             render: (v) => <Tag color={v === 'success' ? 'green' : v === 'partial' ? 'orange' : 'red'}>{v}</Tag>,
           },
           { title: '信息', dataIndex: 'message', ellipsis: true },
-          { title: '行数', dataIndex: 'rows_affected', width: 100 },
-          { title: '开始时间', dataIndex: 'started_at', width: 180 },
-          { title: '结束时间', dataIndex: 'finished_at', width: 180 },
+          { title: '行数', dataIndex: 'rows_affected', width: 100, sorter: numSorter('rows_affected') },
+          { title: '开始时间', dataIndex: 'started_at', width: 180, sorter: strSorter('started_at'), defaultSortOrder: 'descend' },
+          { title: '结束时间', dataIndex: 'finished_at', width: 180, sorter: strSorter('finished_at') },
         ]}
       />
     </div>

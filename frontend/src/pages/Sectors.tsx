@@ -2,6 +2,8 @@ import { Button, DatePicker, Space, Table, Tabs, Typography, message } from 'ant
 import { useEffect, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
 import { api, type Sector, type SectorDaily } from '../api/client';
+import { PctCell, numSorter, strSorter } from '../components/PctCell';
+import { formatYi } from '../components/format';
 
 const { Title } = Typography;
 
@@ -54,12 +56,13 @@ function SectorList() {
         dataSource={data}
         loading={loading}
         size="small"
-        pagination={{ pageSize: 20 }}
+        pagination={{ pageSize: 50 }}
         columns={[
-          { title: '代码', dataIndex: 'ts_code', width: 180 },
-          { title: '名称', dataIndex: 'name', width: 240 },
+          { title: '代码', dataIndex: 'ts_code', width: 180, sorter: strSorter('ts_code') },
+          { title: '名称', dataIndex: 'name', width: 240, sorter: strSorter('name') },
           {
             title: '类型', dataIndex: 'type', width: 80,
+            sorter: strSorter('type'),
             render: (v: string) => v === 'I' ? '行业' : v === 'C' ? '概念' : v,
           },
         ]}
@@ -109,18 +112,20 @@ function SectorDailyView() {
         dataSource={data}
         loading={loading}
         size="small"
-        pagination={{ pageSize: 30 }}
+        pagination={{ pageSize: 50 }}
         columns={[
-          { title: '日期', dataIndex: 'trade_date', width: 110 },
-          { title: '板块代码', dataIndex: 'sector_code', width: 140 },
-          { title: '名称', dataIndex: 'name', width: 200 },
-          { title: '收盘', dataIndex: 'close', width: 100 },
+          { title: '日期', dataIndex: 'trade_date', width: 110, sorter: strSorter('trade_date') },
+          { title: '板块代码', dataIndex: 'sector_code', width: 140, sorter: strSorter('sector_code') },
+          { title: '名称', dataIndex: 'name', width: 220 },
+          { title: '收盘', dataIndex: 'close', width: 110, sorter: numSorter('close') },
           {
-            title: '涨跌幅%', dataIndex: 'pct_chg', width: 100,
-            render: (v: number | null) => v == null ? '-' : <span style={{ color: v >= 0 ? '#f5222d' : '#52c41a' }}>{v.toFixed(2)}</span>,
+            title: '涨跌幅%', dataIndex: 'pct_chg', width: 110,
+            sorter: numSorter('pct_chg'),
+            defaultSortOrder: 'descend',
+            render: (v: number | null) => <PctCell value={v} />,
           },
-          { title: '成交量', dataIndex: 'vol', width: 120 },
-          { title: '成交额', dataIndex: 'amount', width: 120 },
+          { title: '成交量(亿手)', dataIndex: 'vol', width: 120, sorter: numSorter('vol'), render: (v) => formatYi(v, 'shou', '亿手') },
+          { title: '成交额(亿)', dataIndex: 'amount', width: 120, sorter: numSorter('amount'), render: (v) => formatYi(v, 'yuan', '亿') },
         ]}
       />
     </>
