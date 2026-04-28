@@ -1,4 +1,4 @@
-import { Card, Collapse, DatePicker, Empty, Space, Table, Tag, Typography } from 'antd';
+import { Card, Collapse, DatePicker, Empty, Radio, Space, Table, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import type { Dayjs } from 'dayjs';
 import { api } from '../api/client';
@@ -32,6 +32,7 @@ type Resp = {
 
 export default function LimitUpBySector() {
   const [date, setDate] = useState<Dayjs | null>(null);
+  const [by, setBy] = useState<'concept' | 'industry'>('concept');
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -39,23 +40,27 @@ export default function LimitUpBySector() {
     setLoading(true);
     try {
       const r = await api.get<Resp>('/limit-up/by-sector', {
-        params: { trade_date: date?.format('YYYY-MM-DD') },
+        params: { trade_date: date?.format('YYYY-MM-DD'), by },
       });
       setData(r.data);
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [date]);
+  useEffect(() => { load(); }, [date, by]);
 
   const sectors = data?.sectors || [];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16 }} wrap>
         <Title level={3} style={{ margin: 0 }}>涨停板块热度</Title>
         <DatePicker value={date} onChange={setDate} placeholder={data?.trade_date ? `默认：${data.trade_date}` : '选日期'} />
+        <Radio.Group value={by} onChange={(e) => setBy(e.target.value)} optionType="button" buttonStyle="solid">
+          <Radio.Button value="concept">东财概念</Radio.Button>
+          <Radio.Button value="industry">申万行业</Radio.Button>
+        </Radio.Group>
         <Text type="secondary">
-          共 {sectors.length} 个板块有涨停，总计 {sectors.reduce((s, x) => s + x.count, 0)} 只涨停
+          {sectors.length} 个板块 / {by === 'concept' ? '同股可在多概念中重复计数' : '一股一行业'}
         </Text>
       </Space>
 

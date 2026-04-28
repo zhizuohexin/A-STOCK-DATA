@@ -20,7 +20,18 @@ def summary(
     if trade_date is None:
         trade_date = latest_trade_date(session)
     if trade_date is None:
-        return {"trade_date": None, "error": "no_data"}
+        return {
+            "trade_date": None,
+            "limit_up_count": 0,
+            "limit_down_count": 0,
+            "broken_limit_count": 0,
+            "consecutive_breakdown": [],
+            "market_distribution": {"up": 0, "flat": 0, "down": 0, "total": 0},
+            "top_gainers": [],
+            "top_losers": [],
+            "top_amount": [],
+            "top_sectors": [],
+        }
 
     params = {"td": trade_date}
 

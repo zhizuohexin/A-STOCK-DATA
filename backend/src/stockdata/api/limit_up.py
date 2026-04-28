@@ -41,45 +41,105 @@ def list_limit_up(
 @router.get("/by-sector")
 def limit_up_by_sector(
     trade_date: date | None = None,
+    by: str = "concept",
     session: Session = Depends(get_session),
 ):
-    """涨停按板块（申万行业）分组，每组含涨停个股明细，按涨停数降序。"""
+    """涨停按板块分组。
+
+    by=concept（默认）：按东财概念归类，一只股可属于多个概念（同市场软件口径）；
+    by=industry：按申万行业归类（一对一，粗）。
+    """
     if trade_date is None:
         trade_date = latest_trade_date(session)
     if trade_date is None:
-        return {"trade_date": None, "sectors": []}
+        return {"trade_date": None, "by": by, "sectors": []}
 
-    rows = session.execute(
-        text(
-            """
-            SELECT COALESCE(s.industry, '未分类') AS industry,
-                   l.ts_code, l.name, l.close, l.pct_chg,
-                   l.limit_times, l.first_time, l.last_time, l.fd_amount, l.amount, l.open_times
-            FROM limit_up_daily l
-            LEFT JOIN stocks s ON s.ts_code = l.ts_code
-            WHERE l.trade_date=:td AND l."limit"='U'
-            ORDER BY l.limit_times DESC NULLS LAST, l.pct_chg DESC NULLS LAST
-            """
-        ),
-        {"td": trade_date},
-    ).mappings().all()
+    if by == "industry":
+        rows = session.execute(
+            text(
+                """
+                SELECT COALESCE(s.industry, '未分类') AS sector_name,
+                       NULL AS sector_code,
+                       l.ts_code, l.name, l.close, l.pct_chg,
+                       l.limit_times, l.first_time, l.last_time, l.fd_amount, l.amount, l.open_times
+                FROM limit_up_daily l
+                LEFT JOIN stocks s ON s.ts_code = l.ts_code
+                WHERE l.trade_date=:td AND l."limit"='U'
+                ORDER BY l.limit_times DESC NULLS LAST, l.pct_chg DESC NULLS LAST
+                """
+            ),
+            {"td": trade_date},
+        ).mappings().all()
+    else:
+        # 概念分组：一只股 JOIN 多次出现，分别归到所属各个概念
+        rows = session.execute(
+            text(
+                """
+                SELECT s.name AS sector_name, s.ts_code AS sector_code,
+                       l.ts_code, l.name, l.close, l.pct_chg,
+                       l.limit_times, l.first_time, l.last_time, l.fd_amount, l.amount, l.open_times
+                FROM limit_up_daily l
+                JOIN stock_sectors ss ON ss.ts_code = l.ts_code
+                JOIN sectors s ON s.ts_code = ss.sector_code AND s.type='C'
+                WHERE l.trade_date=:td AND l."limit"='U'
+                ORDER BY l.limit_times DESC NULLS LAST, l.pct_chg DESC NULLS LAST
+                """
+            ),
+            {"td": trade_date},
+        ).mappings().all()
 
-    groups: dict[str, list] = defaultdict(list)
+    groups: dict[tuple, dict] = {}
     for r in rows:
         d = dict(r)
-        ind = d.pop("industry")
-        groups[ind].append(d)
+        sector_name = d.pop("sector_name")
+        sector_code = d.pop("sector_code")
+        key = (sector_name, sector_code)
+        groups.setdefault(key, {"sector_name": sector_name, "sector_code": sector_code, "stocks": []})
+        groups[key]["stocks"].append(d)
 
     sectors = [
         {
-            "industry": ind,
-            "count": len(stocks),
-            "max_consecutive": max((s.get("limit_times") or 0) for s in stocks),
-            "stocks": stocks,
+            "industry": v["sector_name"],  # 前端字段沿用 industry，避免改前端
+            "sector_code": v["sector_code"],
+            "count": len(v["stocks"]),
+            "max_consecutive": max((s.get("limit_times") or 0) for s in v["stocks"]),
+            "stocks": v["stocks"],
         }
-        for ind, stocks in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+        for v in sorted(groups.values(), key=lambda x: (-len(x["stocks"]), x["sector_name"] or ""))
     ]
-    return {"trade_date": trade_date, "sectors": sectors}
+
+    # 概念模式下额外列出"未匹配到任何概念"的涨停股，避免遗漏
+    if by == "concept":
+        unmatched = session.execute(
+            text(
+                """
+                SELECT l.ts_code, l.name, l.close, l.pct_chg,
+                       l.limit_times, l.first_time, l.last_time, l.fd_amount, l.amount, l.open_times
+                FROM limit_up_daily l
+                WHERE l.trade_date=:td AND l."limit"='U'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM stock_sectors ss
+                    JOIN sectors s ON s.ts_code = ss.sector_code AND s.type='C'
+                    WHERE ss.ts_code = l.ts_code
+                  )
+                ORDER BY l.limit_times DESC NULLS LAST, l.pct_chg DESC NULLS LAST
+                """
+            ),
+            {"td": trade_date},
+        ).mappings().all()
+        if unmatched:
+            stocks_u = [dict(r) for r in unmatched]
+            sectors.append(
+                {
+                    "industry": "未归类",
+                    "sector_code": None,
+                    "count": len(stocks_u),
+                    "max_consecutive": max((s.get("limit_times") or 0) for s in stocks_u),
+                    "stocks": stocks_u,
+                }
+            )
+
+    return {"trade_date": trade_date, "by": by, "sectors": sectors}
 
 
 @router.post("/backfill")

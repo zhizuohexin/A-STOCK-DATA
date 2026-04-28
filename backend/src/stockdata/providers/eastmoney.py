@@ -271,17 +271,23 @@ class EastmoneyProvider(DataProvider):
     ) -> list[dict[str, Any]]:
         """批量：一次拉取所有板块近 days 个交易日的日线。
 
-        每板块 1 次 HTTP；板块间 sleep 防止东财断连接。
+        每板块 1 次 HTTP；板块间 sleep + 失败重试，防止东财断连。
         """
         sectors = self.fetch_sectors()
         out: list[dict[str, Any]] = []
         for i, sec in enumerate(sectors):
             secid = f"90.{sec['ts_code'].removeprefix('BK')}"
-            try:
-                kline = self._kline(secid, klt=101, lmt=days + 5)
-            except Exception as e:  # noqa: BLE001
-                logger.warning("sector %s kline failed: %s", sec["ts_code"], e)
-                time.sleep(0.5)
+            kline: list[dict[str, Any]] | None = None
+            for attempt in range(3):
+                try:
+                    kline = self._kline(secid, klt=101, lmt=days + 5)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    if attempt == 2:
+                        logger.warning("sector %s kline failed after retries: %s", sec["ts_code"], e)
+                    else:
+                        time.sleep(1.0 * (attempt + 1))
+            if kline is None:
                 continue
             for bar in kline:
                 td = bar.get("trade_date")
@@ -297,10 +303,82 @@ class EastmoneyProvider(DataProvider):
                             "amount": bar["amount"],
                         }
                     )
-            if i % 50 == 49:
-                time.sleep(0.5)
+            # 间隔：每个 0.3s，每 30 个长 sleep 1.5s
+            if i % 30 == 29:
+                time.sleep(1.5)
             else:
-                time.sleep(0.05)
+                time.sleep(0.3)
+        return out
+
+    def fetch_stock_concept_boards(self, ts_code: str) -> list[dict[str, Any]]:
+        """查个股在东财所属的概念板块（含选入原因 / 排序）。
+
+        ts_code 形如 002580.SZ。返回字段：
+          sector_code（BK0989 标准格式）、sector_name、reason、is_precise、rank
+        """
+        url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+        params = {
+            "reportName": "RPT_F10_CORETHEME_BOARDTYPE",
+            "columns": "ALL",
+            "filter": f'(SECUCODE="{ts_code}")',
+            "pageNumber": 1,
+            "pageSize": 100,
+        }
+        r = self.client.get(url, params=params)
+        r.raise_for_status()
+        data = (r.json() or {}).get("result") or {}
+        rows = data.get("data") or []
+        out: list[dict[str, Any]] = []
+        for item in rows:
+            code = item.get("NEW_BOARD_CODE")
+            name = item.get("BOARD_NAME")
+            if not code or not name:
+                continue
+            out.append(
+                {
+                    "ts_code": ts_code,
+                    "sector_code": code,
+                    "sector_name": name,
+                    "reason": item.get("SELECTED_BOARD_REASON"),
+                    "is_precise": item.get("IS_PRECISE") == "1",
+                    "rank": item.get("BOARD_RANK"),
+                }
+            )
+        return out
+
+    def fetch_stock_all_boards(self, ts_code: str) -> list[dict[str, Any]]:
+        """更全的版本：含行业 + 概念 + 地域 + 标签（深股通、融资融券等）。
+
+        来自东财 F10 PC 页面 PageAjax 接口，板块代码格式略乱，仅作兜底。
+        """
+        # 002580.SZ -> SZ002580
+        code, _, exch = ts_code.partition(".")
+        ex = exch.upper() if exch else "SZ"
+        if ex in ("SH", "SSE"):
+            symbol = f"SH{code}"
+        elif ex in ("SZ", "SZSE"):
+            symbol = f"SZ{code}"
+        else:
+            symbol = f"BJ{code}"
+        url = "https://emweb.eastmoney.com/PC_HSF10/CoreConception/PageAjax"
+        r = self.client.get(url, params={"code": symbol})
+        r.raise_for_status()
+        payload = r.json() or {}
+        rows = payload.get("ssbk") or []
+        out: list[dict[str, Any]] = []
+        for item in rows:
+            code = item.get("BOARD_CODE")
+            name = item.get("BOARD_NAME")
+            if not code or not name:
+                continue
+            out.append(
+                {
+                    "ts_code": ts_code,
+                    "sector_code_raw": str(code),
+                    "sector_name": name,
+                    "rank": item.get("BOARD_RANK"),
+                }
+            )
         return out
 
     def fetch_intraday_bars(

@@ -3,7 +3,9 @@ FROM python:3.12-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/ \
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 
 RUN pip install --no-cache-dir uv==0.10.0
 
@@ -11,6 +13,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-install-project --no-dev || uv sync --no-install-project --no-dev
 
+COPY README.md ./
 COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./

@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     environment:
       TUSHARE_TOKEN: ${TUSHARE_TOKEN}
+      KAIPANLA_API_KEY: ${KAIPANLA_API_KEY}
       DATABASE_URL: sqlite:////app/data/stocks.db
       API_HOST: 0.0.0.0
       API_PORT: 8000

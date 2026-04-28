@@ -7,6 +7,7 @@ from apscheduler.triggers.cron import CronTrigger
 from stockdata.config import settings
 from stockdata.jobs.cleanup import cleanup_old_intraday
 from stockdata.jobs.daily import run_daily_job
+from stockdata.jobs.weekly import sync_stock_sectors_weekly
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +49,21 @@ def start_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
+    # 每周一 02:00 全量同步个股↔板块（约 35 分钟）
+    scheduler.add_job(
+        sync_stock_sectors_weekly,
+        CronTrigger(day_of_week="mon", hour=2, minute=0, timezone=tz),
+        id="weekly_stock_sectors_sync",
+        replace_existing=True,
+        misfire_grace_time=3600,
+        max_instances=1,
+    )
+
     scheduler.start()
     _scheduler = scheduler
     logger.info(
-        "scheduler started: daily @%02d:%02d, cleanup @%02d:%02d (%s)",
+        "scheduler started: daily @%02d:%02d, cleanup @%02d:%02d, "
+        "weekly_sectors @Mon 02:00 (%s)",
         settings.daily_job_hour,
         settings.daily_job_minute,
         settings.cleanup_job_hour,

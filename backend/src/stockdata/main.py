@@ -12,6 +12,7 @@ from stockdata.api import (
     intraday,
     jobs,
     journal,
+    kaipanla,
     limit_down,
     limit_up,
     ocr,
@@ -61,6 +62,7 @@ app.include_router(rankings.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
 app.include_router(ocr.router, prefix="/api")
 app.include_router(journal.router, prefix="/api")
+app.include_router(kaipanla.router, prefix="/api")
 
 _uploads_path = Path(settings.uploads_dir)
 _uploads_path.mkdir(parents=True, exist_ok=True)

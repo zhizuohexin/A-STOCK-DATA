@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     tushare_token: str = ""
+    kaipanla_api_key: str = ""
 
     database_url: str = "sqlite:///./data/stocks.db"
     uploads_dir: str = "./data/uploads"
