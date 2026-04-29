@@ -22,6 +22,7 @@ const { Header, Content, Sider } = Layout;
 
 const menu: MenuProps['items'] = [
   { key: '/', icon: <DashboardOutlined />, label: <Link to="/">复盘首页</Link> },
+  { key: '/kaipanla', icon: <ThunderboltOutlined />, label: <Link to="/kaipanla">开盘啦增强</Link> },
   { key: '/quotes', icon: <LineChartOutlined />, label: <Link to="/quotes">日线行情</Link> },
   { key: '/top-amount', icon: <FundOutlined />, label: <Link to="/top-amount">成交额榜</Link> },
   { key: '/limit-up', icon: <ThunderboltOutlined />, label: <Link to="/limit-up">涨停/连板</Link> },

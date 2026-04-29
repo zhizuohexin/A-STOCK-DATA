@@ -8,6 +8,7 @@ import 'dayjs/locale/zh-cn';
 import './index.css';
 import App from './App';
 import Dashboard from './pages/Dashboard';
+import Kaipanla from './pages/Kaipanla';
 import Stocks from './pages/Stocks';
 import Quotes from './pages/Quotes';
 import LimitUp from './pages/LimitUp';
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <Dashboard /> },
+      { path: 'kaipanla', element: <Kaipanla /> },
       { path: 'stocks', element: <Stocks /> },
       { path: 'quotes', element: <Quotes /> },
       { path: 'limit-up', element: <LimitUp /> },
