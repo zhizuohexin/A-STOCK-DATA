@@ -7,6 +7,7 @@ from apscheduler.triggers.cron import CronTrigger
 from stockdata.config import settings
 from stockdata.jobs.cleanup import cleanup_old_intraday
 from stockdata.jobs.daily import run_daily_job
+from stockdata.jobs.realtime_snapshot import run_realtime_snapshot
 from stockdata.jobs.weekly import sync_stock_sectors_weekly
 
 logger = logging.getLogger(__name__)
@@ -59,11 +60,20 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,
     )
 
+    # 每日 15:00 收盘瞬间快照（实时类 KPL 接口，不支持历史回溯）
+    scheduler.add_job(
+        run_realtime_snapshot,
+        CronTrigger(day_of_week="mon-fri", hour=15, minute=0, timezone=tz),
+        id="realtime_snapshot",
+        replace_existing=True,
+        misfire_grace_time=600,
+    )
+
     scheduler.start()
     _scheduler = scheduler
     logger.info(
         "scheduler started: daily @%02d:%02d, cleanup @%02d:%02d, "
-        "weekly_sectors @Mon 02:00 (%s)",
+        "weekly_sectors @Mon 02:00, realtime_snapshot @15:00 (%s)",
         settings.daily_job_hour,
         settings.daily_job_minute,
         settings.cleanup_job_hour,

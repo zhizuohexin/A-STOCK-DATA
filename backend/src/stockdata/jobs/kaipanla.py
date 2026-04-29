@@ -21,11 +21,20 @@ from stockdata.crud import (
     record_job,
     upsert_kpl_auction,
     upsert_kpl_broken,
+    upsert_kpl_conception_history,
     upsert_kpl_consecutive,
+    upsert_kpl_history_analysis,
+    upsert_kpl_history_strength,
     upsert_kpl_ladder,
     upsert_kpl_lhb,
     upsert_kpl_lhb_seat,
+    upsert_kpl_market_ladder,
+    upsert_kpl_news,
+    upsert_kpl_news_selected,
+    upsert_kpl_sector_news,
     upsert_kpl_sentiment,
+    upsert_kpl_withdrawal,
+    upsert_kpl_youzi,
 )
 from stockdata.db import SessionLocal
 from stockdata.providers.kaipanla import KaipanlaProvider
@@ -193,6 +202,109 @@ def run_kpl_job(target_date: date | None = None, with_lhb_detail: bool = True) -
         except Exception as e:  # noqa: BLE001
             session.rollback()
             errors.append(f"auction: {e}")
+
+        # 8. 大幅回撤池
+        try:
+            rows = kpl.fetch_withdrawal(d_str)
+            n = upsert_kpl_withdrawal(session, rows)
+            session.commit()
+            summary["withdrawal"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"withdrawal: {e}")
+
+        # 9. 空间板梯队
+        try:
+            rows = kpl.fetch_market_ladder(d_str)
+            n = upsert_kpl_market_ladder(session, rows)
+            session.commit()
+            summary["market_ladder"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"market_ladder: {e}")
+
+        # 10. 题材新闻 + 同步入题材库（src='KPL', sector_name=keyword）
+        try:
+            data = kpl.fetch_news_themes(limit=30)
+            r = upsert_kpl_news(session, data["news"], data["stocks"])
+            session.commit()
+            summary["news"] = r["news"]
+            summary["news_stocks"] = r["stocks"]
+            theme_added += r["themes_added"]
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"news: {e}")
+
+        # 11. 盘中题材异动事件流
+        try:
+            rows = kpl.fetch_conception_history(d_str)
+            n = upsert_kpl_conception_history(session, rows)
+            session.commit()
+            summary["conception_history"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"conception_history: {e}")
+
+        # 12. 历史 100 日市场强度
+        try:
+            rows = kpl.fetch_history_strength()
+            n = upsert_kpl_history_strength(session, rows)
+            session.commit()
+            summary["history_strength"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"history_strength: {e}")
+
+        # 13. 长周期趋势（含炸板率）
+        try:
+            rows = kpl.fetch_history_analysis()
+            n = upsert_kpl_history_analysis(session, rows)
+            session.commit()
+            summary["history_analysis"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"history_analysis: {e}")
+
+        # 14. 游资动向 + 累计标签（traders + trades）
+        try:
+            data = kpl.fetch_youzi_trends(d_str)
+            r = upsert_kpl_youzi(session, data["traders"], data["trades"])
+            session.commit()
+            summary["youzi_traders"] = r["traders"]
+            summary["youzi_trades"] = r["trades"]
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"youzi: {e}")
+
+        # 15. 板块新闻（遍历今日热点 KPL 板块）
+        try:
+            from sqlalchemy import text as _text
+            sectors = session.execute(
+                _text("SELECT sector_code FROM kpl_sectors_heat WHERE trade_date=:td"),
+                {"td": target_date},
+            ).all()
+            total_news = 0
+            for (sc,) in sectors:
+                try:
+                    news_rows = kpl.fetch_sector_news(sc)
+                    total_news += upsert_kpl_sector_news(session, news_rows)
+                except Exception:  # noqa: BLE001
+                    continue
+            session.commit()
+            summary["sector_news"] = total_news
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"sector_news: {e}")
+
+        # 16. 编辑精选
+        try:
+            rows = kpl.fetch_news_selected()
+            n = upsert_kpl_news_selected(session, rows)
+            session.commit()
+            summary["news_selected"] = n
+        except Exception as e:  # noqa: BLE001
+            session.rollback()
+            errors.append(f"news_selected: {e}")
 
         summary["theme_added"] = theme_added
         summary["errors"] = errors

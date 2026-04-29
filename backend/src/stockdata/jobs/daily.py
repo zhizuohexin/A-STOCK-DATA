@@ -9,11 +9,14 @@ from stockdata.crud import (
     recompute_sector_heat,
     record_job,
     upsert_daily_quotes,
+    upsert_kpl_sector_ladder,
+    upsert_kpl_sectors_heat,
     upsert_limit_up,
     upsert_sector_daily,
     upsert_sectors,
     upsert_stocks,
 )
+from stockdata.providers.kaipanla import KaipanlaProvider
 from stockdata.db import SessionLocal
 from stockdata.jobs.kaipanla import run_kpl_job
 from stockdata.providers import get_provider
@@ -101,14 +104,40 @@ def run_daily_job(
             session.rollback()
             errors.append(f"sector_daily: {e}")
 
-        # 6. 涨停板块热度（concept，仅入库 count >= 10）
+        # 6a. SQL 自己算的板块热度（基于 limit_up_daily + stock_sectors）
         try:
             n = recompute_sector_heat(session, target_date, min_count=10)
             session.commit()
-            summary["sector_heat"] = n
+            summary["sector_heat_sql"] = n
         except Exception as e:  # noqa: BLE001
             session.rollback()
-            errors.append(f"sector_heat: {e}")
+            errors.append(f"sector_heat_sql: {e}")
+
+        # 6b. 开盘啦给的板块热度（sectors_strength 仅当天，sector_ladder 支持历史）
+        kpl = KaipanlaProvider()
+        try:
+            if target_date == date.today():
+                try:
+                    rows = kpl.fetch_sectors_strength()
+                    if rows:
+                        n = upsert_kpl_sectors_heat(session, rows)
+                        session.commit()
+                        summary["sector_heat_kpl"] = n
+                except Exception as e:  # noqa: BLE001
+                    session.rollback()
+                    errors.append(f"sector_heat_kpl: {e}")
+            # 6c. 板块涨停梯队（含每板块个股，支持历史）
+            try:
+                rows = kpl.fetch_sector_ladder(str(target_date))
+                if rows:
+                    n = upsert_kpl_sector_ladder(session, rows)
+                    session.commit()
+                    summary["sector_ladder_kpl"] = n
+            except Exception as e:  # noqa: BLE001
+                session.rollback()
+                errors.append(f"sector_ladder_kpl: {e}")
+        finally:
+            kpl.close()
 
         # 7. 开盘啦增强数据（情绪/连板/炸板/龙虎榜/竞价异动 + 同步入题材库）
         try:

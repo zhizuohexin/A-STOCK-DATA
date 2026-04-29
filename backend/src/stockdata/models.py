@@ -262,6 +262,44 @@ class KplLhbSeat(Base):
     )
 
 
+class KplSectorLadder(Base):
+    """开盘啦板块涨停梯队：每个热点板块下的涨停个股 + 连板描述。"""
+
+    __tablename__ = "kpl_sector_ladder"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    sector_code: Mapped[str] = mapped_column(String(32), index=True)
+    sector_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    td_type: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    tips: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("trade_date", "sector_code", "ts_code", name="uq_kpl_sector_ladder"),
+    )
+
+
+class KplSectorsHeat(Base):
+    """开盘啦板块强度排行（仅当天可拉，含 count 涨停数）。
+
+    与自己 SQL 算的 sector_limit_up_heat 并存，两个数据源对比才有判断价值。
+    """
+
+    __tablename__ = "kpl_sectors_heat"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    sector_code: Mapped[str] = mapped_column(String(32))
+    sector_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("trade_date", "sector_code", name="uq_kpl_sectors_heat"),)
+
+
 class KplAuction(Base):
     """开盘啦尾盘抢筹/竞价异动（每日 N 行，含 themes）。"""
 
@@ -286,6 +324,251 @@ class KplAuction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint("trade_date", "ts_code", name="uq_kpl_auction_date_code"),)
+
+
+class KplWithdrawal(Base):
+    """开盘啦大幅回撤池（高位跳水个股）。"""
+
+    __tablename__ = "kpl_withdrawal"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pct_chg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    withdrawal_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("trade_date", "ts_code", name="uq_kpl_withdrawal"),)
+
+
+class KplMarketLadder(Base):
+    """开盘啦空间板梯队（最高板/连板/首板分级）。tip 字段为开盘啦原始等级编号。"""
+
+    __tablename__ = "kpl_market_ladder"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    tip: Mapped[str] = mapped_column(String(8), index=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    tips: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("trade_date", "ts_code", name="uq_kpl_market_ladder"),)
+
+
+class KplNews(Base):
+    """开盘啦题材新闻。news_id 用接口给的 id 主键。"""
+
+    __tablename__ = "kpl_news"
+
+    news_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    keyword: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    news_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    status: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class KplNewsStock(Base):
+    """新闻↔个股关联（每条新闻关联多只股，含 isTop 龙头标识）。"""
+
+    __tablename__ = "kpl_news_stock"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    news_id: Mapped[int] = mapped_column(Integer, index=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pct_chg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_top: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (UniqueConstraint("news_id", "ts_code", name="uq_kpl_news_stock"),)
+
+
+class KplConceptionHistory(Base):
+    """开盘啦盘中题材异动事件流（按时间戳，含板块涨跌幅）。"""
+
+    __tablename__ = "kpl_conception_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    event_time: Mapped[int] = mapped_column(Integer)  # unix 时间戳
+    plate_text: Mapped[str] = mapped_column(String(128))  # "算力概念持续走强"
+    plate_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    plate_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    plate_je: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    plate_zdf: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    event_type: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("trade_date", "event_time", "plate_text", name="uq_kpl_conception_event"),
+    )
+
+
+class KplHistoryStrength(Base):
+    """开盘啦历史市场强度曲线（每日一行，含 strength 值 + 涨停/最大连板/跳水家数）。"""
+
+    __tablename__ = "kpl_history_strength"
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    strength: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_up_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_consecutive: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    big_drop_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class KplDashboard(Base):
+    """开盘啦竞价全景看板 board 段（15:00 快照入库）。"""
+
+    __tablename__ = "kpl_dashboard"
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    today_zhang_ting: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_zhang_ting: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    today_feng_ban: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_feng_ban_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    today_die_ting: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_die_ting: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    up_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    down_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    flat_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    intensity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_zt_money: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_lb_money: Mapped[float | None] = mapped_column(Float, nullable=True)
+    snapshot_time: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class KplDashboardTop(Base):
+    """开盘啦竞价风向标（topUp/topDown 各 3 只）。"""
+
+    __tablename__ = "kpl_dashboard_top"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    direction: Mapped[str] = mapped_column(String(8))  # up / down
+    rank: Mapped[int] = mapped_column(Integer)
+    ts_code: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pct_chg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("trade_date", "direction", "rank", name="uq_kpl_dashboard_top"),)
+
+
+class KplDashboardSector(Base):
+    """竞价看板的板块涨跌面。"""
+
+    __tablename__ = "kpl_dashboard_sector"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    sector_code: Mapped[str] = mapped_column(String(32))
+    sector_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pct_chg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("trade_date", "sector_code", name="uq_kpl_dashboard_sector"),)
+
+
+class KplEmotion(Base):
+    """开盘啦实时情绪/分布快照（15:00 入库当日终值）。"""
+
+    __tablename__ = "kpl_emotion"
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    up_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    down_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_up: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_down: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    today_vol: Mapped[float | None] = mapped_column(Float, nullable=True)
+    yest_vol: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vol_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class KplYouzi(Base):
+    """开盘啦游资名册（id 来自 KPL）。"""
+
+    __tablename__ = "kpl_youzi"
+
+    trader_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class KplYouziTrade(Base):
+    """游资当日操盘明细（每条对应一个席位 + 个股 + 买/卖）。"""
+
+    __tablename__ = "kpl_youzi_trade"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trade_date: Mapped[date] = mapped_column(Date, index=True)
+    trader_id: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(2))  # B / S
+    seat_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ts_code: Mapped[str] = mapped_column(String(16), index=True)
+    buy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sell: Mapped[float | None] = mapped_column(Float, nullable=True)
+    net_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("trade_date", "trader_id", "side", "ts_code", "seat_name", name="uq_kpl_youzi_trade"),
+        Index("ix_kpl_youzi_trade_ts_code", "ts_code"),
+    )
+
+
+class KplHistoryAnalysis(Base):
+    """开盘啦长周期涨跌停趋势（含炸板率 blown_rate）。"""
+
+    __tablename__ = "kpl_history_analysis"
+
+    trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    limit_up: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_down: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    broken: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    blown: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    blown_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class KplSectorNews(Base):
+    """开盘啦板块新闻流（按 sector_code 维度）。"""
+
+    __tablename__ = "kpl_sector_news"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sector_code: Mapped[str] = mapped_column(String(32), index=True)
+    news_id: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    news_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    news_type: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("sector_code", "news_id", name="uq_kpl_sector_news"),)
+
+
+class KplNewsSelected(Base):
+    """开盘啦编辑精选深度文章（含关联板块/股 JSON）。"""
+
+    __tablename__ = "kpl_news_selected"
+
+    article_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    account: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    create_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    img_url: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    related: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: [["801001","芯片","1.07"], ["001309","德明利","1.65"]]
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class SectorLimitUpHeat(Base):
